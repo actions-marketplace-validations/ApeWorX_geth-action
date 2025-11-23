@@ -1,0 +1,98 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main]
+    tags-ignore: ['**']
+    paths-ignore: ['**.md']
+
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md']
+
+concurrency:
+  group: ${{ github.ref }}-test
+  cancel-in-progress: true
+
+jobs:
+  lint-yaml:
+    name: Lint action/test .yaml files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ibiqlik/action-yamllint@v3
+
+  test-latest:
+    name: Test Action on ${{ matrix.os }} with "latest"
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout action code
+        uses: actions/checkout@v4
+
+      - name: Run Action
+        id: install-geth
+        uses: ./
+
+      - name: Verify installation
+        run: |
+          echo "Requested version: ${{ matrix.version }}"
+          echo "Installed version: ${{ steps.install-geth.outputs.version }}"
+          geth version
+        shell: bash
+        if: runner.os != 'Windows'
+
+      - name: Verify installation (Windows)
+        run: |
+          Write-Host "Requested version: ${{ matrix.version }}"
+          Write-Host "Installed version: ${{ steps.install-geth.outputs.version }}"
+          geth version
+        shell: powershell
+        if: runner.os == 'Windows'
+
+  test-with-version:
+    name: Test Action on ${{ matrix.os }} with version ${{ matrix.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          # NOTE: specific version doesn't work with `macos-latest`
+          - windows-latest
+        version:
+          - v1.16.7
+          - 1.15.3
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout action code
+        uses: actions/checkout@v4
+
+      - name: Run Action
+        id: install-geth
+        uses: ./
+        with:
+          version: ${{ matrix.version }}
+
+      - name: Check Installation
+        shell: bash
+        run: |
+          echo "Input: ${{ matrix.version }}"
+          echo "Normalized output: ${{ steps.install-geth.outputs.version }}"
+          INPUT_VERSION="${{ matrix.version }}"
+          NORMALIZED_INPUT=${INPUT_VERSION#v}
+          INSTALLED_VERSION="${{ steps.install-geth.outputs.version }}"
+
+          if [ "$INSTALLED_VERSION" != "$NORMALIZED_INPUT" ]; then
+            echo "Error: Version mismatch. Expected $NORMALIZED_INPUT, got $INSTALLED_VERSION"
+            exit 1
+          fi

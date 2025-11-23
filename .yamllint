@@ -1,0 +1,7 @@
+extends: default
+
+rules:
+  line-length: disable
+  document-start: disable
+  truthy: disable
+# NOTE: Needs a newline at the end of the file
